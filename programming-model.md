@@ -182,7 +182,7 @@ os.cyber.cyberlink(from, to, token, a, v)  submit a cyberlink
 | runtime | nature | when to use |
 |---|---|---|
 | Rune | dynamic, async, eval, hot-reload | default — most neurons, fast iteration, live scripting |
-| Trident | compiled, static, STARK-provable | opt-in — governance bots, high-value automation, auditable logic |
+| Trident | compiled, static, zheng-provable | opt-in — governance bots, high-value automation, auditable logic |
 
 Rune progs reload without stopping the neuron. a Rune prog can eval new code at runtime — the neuron is programmable on the fly. Trident progs are compiled warriors: slower to deploy but their execution is provable via `trident prove`.
 
