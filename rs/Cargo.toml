@@ -1,0 +1,17 @@
+# ---
+# tags: tok, config
+# crystal-type: source
+# crystal-domain: cyber
+# ---
+[package]
+name = "tok"
+version = "0.1.0"
+edition = "2024"
+description = "tok value layer — PLUMB conservation clip + settle mint"
+license = "Cyber"
+
+[dependencies]
+cyber-hemera = { path = "../../hemera/rs" }
+tru = { path = "../../tru/rs" }
+
+[dev-dependencies]

@@ -58,6 +58,8 @@ provability replaces enforcement.
 ## see also
 
 - [[cyb/robot]] — the entity that exercises PLUMB
+- [[latency targets]] (foculus explanation) — when pays and rewards become final/spendable; tok owns conservation, foculus owns the clocks
+- [[specs/money-loop]] (cyber/specs) — network product contract for balance, send, receive, multi-payee reward-after-link
 - [[soft3]] — the stack tok belongs to
 - [[bbg]] — where PLUMB-mutated state lives
 - [[trident]] — the language tok operations compile from
