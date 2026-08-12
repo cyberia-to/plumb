@@ -5,6 +5,8 @@ version = 4
 [[package]]
 name = "cyb-nebu"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f175ebf2788690eee991820099069b16b43d6da87fc3ee7be657011cb06fd474"
 dependencies = [
  "strata-compute",
  "strata-core",
@@ -15,6 +17,30 @@ dependencies = [
 [[package]]
 name = "cyber-hemera"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fac57c1455f6e3ea05f886dbd94d46ea3dc261ecd1d45cc01e983d0f6caf8cb8"
+
+[[package]]
+name = "cyber-tok"
+version = "0.1.0"
+dependencies = [
+ "cyber-hemera",
+ "cyber-tru",
+]
+
+[[package]]
+name = "cyber-tru"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b13097488e33b638d1edf6e4204c0b17f47af172485c48252efae844b5ac1ea9"
+dependencies = [
+ "cyb-nebu",
+ "cyber-hemera",
+ "memmap2",
+ "serde",
+ "thiserror",
+ "toml",
+]
 
 [[package]]
 name = "equivalent"
@@ -119,6 +145,8 @@ dependencies = [
 [[package]]
 name = "strata-compute"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ab90c2503498e0fbe164faa5759939aec3a8c243e0b8ce69494100d820eca03"
 dependencies = [
  "strata-core",
 ]
@@ -126,10 +154,14 @@ dependencies = [
 [[package]]
 name = "strata-core"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3624cd7fd9c8523ba12de1d41094e0b8f69bbc7fb6c1ebd44c90191f25ac548b"
 
 [[package]]
 name = "strata-ext"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20ac54b5b133acd40ca636f7cce39cc2169e4299f03ee44aaf04f6eb73d5a36c"
 dependencies = [
  "strata-core",
 ]
@@ -137,6 +169,8 @@ dependencies = [
 [[package]]
 name = "strata-proof"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76a6a73314f271ae56d4d27574c3489e801870cd70cf8c40db37415d511e90e8"
 dependencies = [
  "strata-core",
 ]
@@ -170,14 +204,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "tok"
-version = "0.1.0"
-dependencies = [
- "cyber-hemera",
- "tru",
 ]
 
 [[package]]
@@ -220,18 +246,6 @@ name = "toml_write"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
-
-[[package]]
-name = "tru"
-version = "0.1.0"
-dependencies = [
- "cyb-nebu",
- "cyber-hemera",
- "memmap2",
- "serde",
- "thiserror",
- "toml",
-]
 
 [[package]]
 name = "unicode-ident"

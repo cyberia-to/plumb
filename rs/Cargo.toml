@@ -1,17 +1,19 @@
-# ---
-# tags: tok, config
-# crystal-type: source
-# crystal-domain: cyber
-# ---
 [package]
-name = "tok"
+name = "cyber-tok"
 version = "0.1.0"
 edition = "2024"
 description = "tok value layer — PLUMB conservation clip + settle mint"
-license = "Cyber"
+license-file = "LICENSE"
+repository = "https://github.com/cyberia-to/plumb"
+keywords = ["token", "conservation", "plumb", "cyber"]
+categories = ["cryptography"]
+
+[lib]
+name = "tok"
+path = "src/lib.rs"
 
 [dependencies]
-cyber-hemera = { path = "../../hemera/rs" }
-tru = { path = "../../tru/rs" }
+cyber-hemera = { version = "0.3", path = "../../hemera/rs" }
+tru = { package = "cyber-tru", version = "0.1", path = "../../tru/rs" }
 
-[dev-dependencies]
+[workspace]
