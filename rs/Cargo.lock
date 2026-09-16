@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "cyber-hemera"
-version = "0.3.0"
+version = "0.3.1"
 
 [[package]]
 name = "cyber-tok"
@@ -12,6 +12,7 @@ version = "0.1.1"
 dependencies = [
  "cyber-hemera",
  "cyber-tru",
+ "neuron-id",
 ]
 
 [[package]]
@@ -68,6 +69,10 @@ checksum = "d1219ed1b7f229ee7104d281dd01d6802fe28bb6e95d292942c4daacdeb798c0"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "neuron-id"
+version = "0.1.0"
 
 [[package]]
 name = "proc-macro2"
@@ -128,25 +133,25 @@ dependencies = [
 
 [[package]]
 name = "strata-compute"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "strata-core",
 ]
 
 [[package]]
 name = "strata-core"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "strata-ext"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "strata-core",
 ]
 
 [[package]]
 name = "strata-nebu"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "strata-compute",
  "strata-core",
@@ -156,7 +161,7 @@ dependencies = [
 
 [[package]]
 name = "strata-proof"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "strata-core",
 ]

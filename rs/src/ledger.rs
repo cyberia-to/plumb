@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 /// Coin class / token particle id.
 pub type TokenId = [u8; 32];
-pub type NeuronId = [u8; 32];
+pub use neuron_id::NeuronId;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum LedgerError {

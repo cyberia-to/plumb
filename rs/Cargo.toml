@@ -13,6 +13,7 @@ name = "tok"
 path = "src/lib.rs"
 
 [dependencies]
+neuron-id = { version = "0.1", path = "../../neuron/id" }
 cyber-hemera = { version = "0.3", path = "../../hemera/rs" }
 tru = { package = "cyber-tru", version = "0.1", path = "../../tru/rs" }
 
