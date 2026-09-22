@@ -20,9 +20,11 @@ decisions log).
 
 ## the rule
 
-1. a birth mint of `total` tokens splits `r · total` to the referrer and
-   `(1 − r) · total` to the newcomer, both legs committed atomically under
-   [[plumb]] token conservation.
+1. a birth mint of `total` tokens splits `floor(r · total)` to the referrer
+   and the rest to the newcomer, both legs committed atomically under
+   [[plumb]] token conservation. the product is fixed-point over `Fx`
+   (`tru/specs/arithmetic.md`), an exact integer multiply and shift; no
+   float touches the split.
 2. no referrer — a book rooted without a referral cyberlink — sends the
    whole birth mint home.
 3. a neuron can never be its own referrer; self-referral is rejected

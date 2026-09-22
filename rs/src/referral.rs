@@ -10,6 +10,7 @@
 //! `r` is a genesis parameter, not fixed here — see `launch.md` decisions
 //! log, "the referral share r" is still open.
 
+use tru::arithmetic::FRAC_BITS;
 use tru::Fx;
 
 use crate::ledger::{LedgerError, MintLedger, NeuronId, TokenId};
@@ -60,10 +61,8 @@ pub fn birth_mint(
     if neuron_amount > 0 {
         legs.push((neuron, neuron_amount));
     }
-    if let Some(ref_neuron) = referrer {
-        if referrer_amount > 0 {
-            legs.push((ref_neuron, referrer_amount));
-        }
+    if let Some(ref_neuron) = referrer.filter(|_| referrer_amount > 0) {
+        legs.push((ref_neuron, referrer_amount));
     }
     ledger.mint_batch(token, &legs)?;
     Ok(BirthMintReceipt {
@@ -72,14 +71,19 @@ pub fn birth_mint(
     })
 }
 
-/// `round(total * r)`, clamped so the referrer never receives more than the
-/// birth mint itself even if `r` is misconfigured above 1.
+/// `floor(total · r)` in fixed point: `r` is carried as `round(r · 2^FRAC_BITS)`
+/// (`tru/specs/arithmetic.md`), so the product is an exact u128 multiply and
+/// a shift — no float on the path. `r ≤ 0` pays nothing; `r ≥ 1` is clamped
+/// so the referrer never receives more than the birth mint itself.
 fn referral_share(total: u64, r: Fx) -> u64 {
     if r <= Fx::ZERO {
         return 0;
     }
-    let f = r.to_f64().clamp(0.0, 1.0);
-    ((total as f64) * f).round() as u64
+    if r >= Fx::ONE {
+        return total;
+    }
+    let scaled = r.to_i64_scaled(FRAC_BITS) as u128; // in (0, 2^FRAC_BITS)
+    ((total as u128 * scaled) >> FRAC_BITS) as u64
 }
 
 #[cfg(test)]
@@ -142,5 +146,38 @@ mod tests {
         assert_eq!(rec.referrer_amount, 1000);
         assert_eq!(rec.neuron_amount, 0);
         assert!(led.check_token(t()));
+    }
+    #[test]
+    fn share_above_one_is_clamped_to_the_whole_mint() {
+        let mut led = MintLedger::new();
+        let rec = birth_mint(&mut led, t(), newcomer(), Some(referrer()), 1000, Fx::from_int(3)).unwrap();
+        assert_eq!(rec, BirthMintReceipt { neuron_amount: 0, referrer_amount: 1000 });
+        assert!(led.check_token(t()));
+    }
+
+    #[test]
+    fn split_is_conserved_and_floored_across_a_sweep() {
+        // Every (total, r) pair mints exactly `total`, the referrer's leg is
+        // floor(total · r) — never more than the share promised — and the
+        // ledger's own conservation check holds after the batch.
+        for total in [1u64, 2, 3, 7, 99, 1000, 123_456_789, u64::MAX / 4] {
+            for (num, den) in [(1, 10), (1, 3), (2, 3), (1, 7), (999, 1000), (1, 1_000_000)] {
+                let r = Fx::from_ratio(num, den);
+                let mut led = MintLedger::new();
+                let rec = birth_mint(&mut led, t(), newcomer(), Some(referrer()), total, r).unwrap();
+                assert_eq!(rec.neuron_amount + rec.referrer_amount, total, "total={total} r={num}/{den}");
+                assert_eq!(led.supply(&t()), total);
+                assert!(led.check_token(t()));
+                // floor(total·num/den) up to r's own 2^-32 rounding, which
+                // scales with total: tolerance (total >> 32) + 1.
+                let exact = (total as u128 * num as u128 / den as u128) as u64;
+                let tol = (total >> 32) + 1;
+                assert!(
+                    rec.referrer_amount + tol >= exact && rec.referrer_amount <= exact + tol,
+                    "total={total} r={num}/{den} got={} exact={exact}",
+                    rec.referrer_amount
+                );
+            }
+        }
     }
 }
