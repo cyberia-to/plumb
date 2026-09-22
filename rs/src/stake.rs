@@ -78,10 +78,29 @@ pub fn stake_yield_shares(positions: &[StakePosition], pos_pool: Fx) -> Vec<(Neu
         return weights.into_iter().map(|(n, _)| (n, Fx::ZERO)).collect();
     }
 
-    weights
-        .into_iter()
-        .map(|(n, w)| (n, pos_pool * w.div(total)))
-        .collect()
+    // Every rounded quotient `w / total` loses up to one ulp, so the shares
+    // would not sum to `pos_pool` exactly. The largest active weight takes
+    // the residual `pos_pool − Σ others` instead of its own rounded share:
+    // the pool is conserved by construction, and the largest share is far
+    // above the few ulps of dust the residual absorbs.
+    let residual_at = weights
+        .iter()
+        .enumerate()
+        .max_by(|(_, (_, a)), (_, (_, b))| a.cmp(b))
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+
+    let mut shares: Vec<(NeuronId, Fx)> = weights
+        .iter()
+        .map(|(n, w)| (*n, pos_pool * w.div(total)))
+        .collect();
+    let others = shares
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != residual_at)
+        .fold(Fx::ZERO, |acc, (_, (_, s))| acc + *s);
+    shares[residual_at].1 = pos_pool - others;
+    shares
 }
 
 #[cfg(test)]
@@ -164,5 +183,49 @@ mod tests {
         let shares = stake_yield_shares(&positions, pool);
         let total = shares.iter().fold(Fx::ZERO, |acc, (_, s)| acc + *s);
         assert_eq!(total, pool);
+    }
+    #[test]
+    fn shares_conserve_the_pool_across_a_sweep() {
+        // Rounded fixed-point quotients do not sum exactly on their own
+        // (a=1, b=1, c=30 misses by dust without the residual rule); every
+        // combination here must conserve the pool exactly.
+        for a in 1..=13u128 {
+            for b in 1..=13u128 {
+                for c in [1u128, 7, 30, 1_000_000] {
+                    let positions = [
+                        passive(9, 5_000),
+                        active(1, a, Fx::ONE),
+                        active(2, b, Fx::from_ratio(1, 3)),
+                        active(3, c, Fx::ONE),
+                    ];
+                    let pool = Fx::from_int(1000);
+                    let shares = stake_yield_shares(&positions, pool);
+                    let total = shares.iter().fold(Fx::ZERO, |acc, (_, s)| acc + *s);
+                    assert_eq!(total, pool, "a={a} b={b} c={c}");
+                    assert!(shares.iter().all(|(_, s)| *s >= Fx::ZERO), "a={a} b={b} c={c}");
+                    assert_eq!(shares[0].1, Fx::ZERO);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn splitting_active_stake_across_identities_is_reward_neutral() {
+        // §15: stake-weighting makes identity-splitting reward-neutral. One
+        // active position of 600 against a rival of 400 earns the same total
+        // as the same 600 split into six identities of 100.
+        let pool = Fx::from_int(1000);
+        let whole = [active(1, 600, Fx::ONE), active(2, 400, Fx::ONE)];
+        let whole_share = stake_yield_shares(&whole, pool)[0].1;
+        let mut split: Vec<StakePosition> = (10..16).map(|i| active(i, 100, Fx::ONE)).collect();
+        split.push(active(2, 400, Fx::ONE));
+        let shares = stake_yield_shares(&split, pool);
+        let split_total = shares[..6].iter().fold(Fx::ZERO, |acc, (_, s)| acc + *s);
+        // Equal up to fixed-point dust: six rounded quotients against one,
+        // each off by at most 2^-32 — bounded here at one millionth of a token.
+        let gap = if split_total > whole_share { split_total - whole_share } else { whole_share - split_total };
+        assert!(gap < Fx::from_ratio(1, 1_000_000), "gap={gap:?}");
+        let gap600 = if whole_share > Fx::from_int(600) { whole_share - Fx::from_int(600) } else { Fx::from_int(600) - whole_share };
+        assert!(gap600 < Fx::from_ratio(1, 1_000_000), "whole={whole_share:?}");
     }
 }
