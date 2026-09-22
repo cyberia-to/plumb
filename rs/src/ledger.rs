@@ -148,4 +148,82 @@ mod tests {
         assert!(led.check_token(t()));
         assert_eq!(led.supply(&t()), 60);
     }
+
+    #[test]
+    fn burn_more_than_balance_is_rejected_and_state_unchanged() {
+        let mut led = MintLedger::new();
+        led.mint_batch(t(), &[(a(), 100)]).unwrap();
+        let err = led.burn(a(), t(), 150).unwrap_err();
+        assert_eq!(err, LedgerError::Insufficient { have: 100, need: 150 });
+        // rejected burn must not touch balance or the burned counter
+        assert_eq!(led.balance(&a(), &t()), 100);
+        assert_eq!(led.total_burned(&t()), 0);
+        assert!(led.check_token(t()));
+    }
+
+    #[test]
+    fn burn_from_untouched_neuron_is_rejected() {
+        let mut led = MintLedger::new();
+        let err = led.burn(a(), t(), 1).unwrap_err();
+        assert_eq!(err, LedgerError::Insufficient { have: 0, need: 1 });
+    }
+
+    #[test]
+    fn mint_batch_skips_zero_amount_legs() {
+        let mut led = MintLedger::new();
+        led.mint_batch(t(), &[(a(), 100), (b(), 0)]).unwrap();
+        assert_eq!(led.balance(&a(), &t()), 100);
+        assert_eq!(led.balance(&b(), &t()), 0);
+        assert_eq!(led.supply(&t()), 100);
+    }
+
+    #[test]
+    fn mint_batch_of_all_zero_legs_is_a_no_op() {
+        let mut led = MintLedger::new();
+        let total = led.mint_batch(t(), &[(a(), 0), (b(), 0)]).unwrap();
+        assert_eq!(total, 0);
+        assert_eq!(led.supply(&t()), 0);
+        assert_eq!(led.balance(&a(), &t()), 0);
+    }
+
+    #[test]
+    fn mint_batch_of_empty_legs_is_a_no_op() {
+        let mut led = MintLedger::new();
+        let total = led.mint_batch(t(), &[]).unwrap();
+        assert_eq!(total, 0);
+        assert_eq!(led.supply(&t()), 0);
+    }
+
+    #[test]
+    fn balances_are_isolated_per_token() {
+        let mut led = MintLedger::new();
+        let other_token = [9u8; 32];
+        led.mint_batch(t(), &[(a(), 100)]).unwrap();
+        led.mint_batch(other_token, &[(a(), 5)]).unwrap();
+        assert_eq!(led.balance(&a(), &t()), 100);
+        assert_eq!(led.balance(&a(), &other_token), 5);
+        led.burn(a(), other_token, 5).unwrap();
+        // burning the second token must not touch the first token's balance
+        assert_eq!(led.balance(&a(), &t()), 100);
+        assert_eq!(led.supply(&t()), 100);
+    }
+
+    #[test]
+    fn repeated_neuron_in_one_batch_accumulates() {
+        let mut led = MintLedger::new();
+        led.mint_batch(t(), &[(a(), 30), (a(), 20)]).unwrap();
+        assert_eq!(led.balance(&a(), &t()), 50);
+        assert_eq!(led.supply(&t()), 50);
+        assert!(led.check_token(t()));
+    }
+
+    #[test]
+    fn untouched_token_and_neuron_default_to_zero() {
+        let led = MintLedger::new();
+        assert_eq!(led.balance(&a(), &t()), 0);
+        assert_eq!(led.total_minted(&t()), 0);
+        assert_eq!(led.total_burned(&t()), 0);
+        assert_eq!(led.supply(&t()), 0);
+        assert!(led.check_token(t()));
+    }
 }
