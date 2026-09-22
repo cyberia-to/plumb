@@ -157,31 +157,45 @@ pub fn conserve_and_allocate(
 }
 
 /// Tokens corresponding to a field mass: `round(fx * emission_scale)`.
+///
+/// Fixed-point throughout (arithmetic.md): `x` is decoded to its exact
+/// scaled integer via `to_i64_scaled(FRAC_BITS)`, multiplied by
+/// `emission_scale` in i128, then rounded by integer division. No f64
+/// appears on this path.
 pub fn fx_to_tokens(x: Fx, emission_scale: u64) -> u64 {
     if x <= Fx::ZERO || emission_scale == 0 {
         return 0;
     }
-    let f = x.to_f64();
-    if f <= 0.0 {
+    let scaled = x.to_i64_scaled(tru::arithmetic::FRAC_BITS) as i128;
+    if scaled <= 0 {
         return 0;
     }
-    let t = f * emission_scale as f64;
-    if t >= u64::MAX as f64 {
+    let denom = 1i128 << tru::arithmetic::FRAC_BITS;
+    let Some(num) = scaled.checked_mul(emission_scale as i128) else {
         return u64::MAX;
+    };
+    let t = (num + denom / 2) / denom;
+    if t >= u64::MAX as i128 {
+        u64::MAX
+    } else {
+        t as u64
     }
-    t.round().max(0.0) as u64
 }
 
+/// Proportional weight for the integer split: the exact fixed-point scaled
+/// integer of `x`, which preserves ratios between shares (arithmetic.md —
+/// no f64 on this path; the downstream split only uses `weights[i] / sum_w`,
+/// so the common scale factor cancels).
 fn fx_weight(x: Fx) -> u128 {
     if x <= Fx::ZERO {
         return 0;
     }
-    let f = x.to_f64();
-    if f <= 0.0 {
-        return 0;
+    let scaled = x.to_i64_scaled(tru::arithmetic::FRAC_BITS);
+    if scaled <= 0 {
+        0
+    } else {
+        (scaled as u128).max(1)
     }
-    let w = (f * 1_000_000_000_000.0) as u128;
-    w.max(1)
 }
 
 #[cfg(test)]
