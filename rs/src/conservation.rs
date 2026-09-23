@@ -51,13 +51,17 @@ pub fn clip_shares(
     if sum_pos <= Fx::ZERO {
         return Err(ConserveError::NoPositiveShare);
     }
-    // v★ ≈ sum of positive lottery shares; ceiling = min(v★, Δφ⁺)
-    let mut ceiling = sum_pos;
-    if directed_total > Fx::ZERO && directed_total < ceiling {
-        ceiling = directed_total;
-    }
-    // If directed_total is zero but shares positive (edge path), keep sum_pos
-    // so propose-path mints still work; pure zero-value fails above.
+    // v★ ≈ sum of positive lottery shares; ceiling = min(v★, Δφ⁺).
+    // A non-positive Δφ⁺ (genuinely measured, not merely absent) means the
+    // coalition moved nothing: ceiling clips to zero, matching rewards.rs's
+    // own contract ("clip: if directed_total is 0, no mint").
+    let ceiling = if directed_total <= Fx::ZERO {
+        Fx::ZERO
+    } else if directed_total < sum_pos {
+        directed_total
+    } else {
+        sum_pos
+    };
     let scale = ceiling.div(sum_pos); // ceiling / sum_pos ≤ 1
     let out: Vec<_> = raw
         .iter()
@@ -219,6 +223,32 @@ mod tests {
         assert_eq!(out[1].amount, 0);
         let paid: u64 = out.iter().map(|r| r.amount).sum();
         assert_eq!(paid, 1000);
+    }
+
+    #[test]
+    fn zero_directed_total_clips_to_zero_not_vstar() {
+        // Δφ⁺ genuinely measured as zero: rewards.rs's own contract is "if
+        // directed_total is 0, no mint" — the ceiling must clip to zero, not
+        // fall back to the uncapped lottery sum v★.
+        let raw = vec![(h(1), Fx::ONE), (h(2), Fx::from_ratio(1, 2))];
+        let clipped = clip_shares(&raw, Fx::ZERO).unwrap();
+        for (_, s) in &clipped {
+            assert_eq!(*s, Fx::ZERO, "a zero Δφ⁺ ceiling must zero every share");
+        }
+    }
+
+    #[test]
+    fn zero_directed_total_mints_nothing() {
+        let raw = vec![(h(1), Fx::ONE), (h(2), Fx::from_ratio(1, 2))];
+        let err = conserve_and_allocate(&raw, Fx::ZERO, 1000, 1000).unwrap_err();
+        assert_eq!(err, ConserveError::NoPositiveShare);
+    }
+
+    #[test]
+    fn negative_directed_total_mints_nothing() {
+        let raw = vec![(h(1), Fx::ONE)];
+        let err = conserve_and_allocate(&raw, Fx::from_ratio(-1, 2), 1000, 1000).unwrap_err();
+        assert_eq!(err, ConserveError::NoPositiveShare);
     }
 
     #[test]
