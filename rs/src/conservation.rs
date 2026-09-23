@@ -157,30 +157,32 @@ pub fn conserve_and_allocate(
 }
 
 /// Tokens corresponding to a field mass: `round(fx * emission_scale)`.
+///
+/// Computed on the raw scaled integer `x.raw().as_u64()` (the field element
+/// `round(x · 2^FRAC_BITS)`, per arithmetic.md), never through `f64` — a
+/// float round-trip here would violate the fixed-point-everywhere doctrine
+/// on this settle-mint path.
 pub fn fx_to_tokens(x: Fx, emission_scale: u64) -> u64 {
     if x <= Fx::ZERO || emission_scale == 0 {
         return 0;
     }
-    let f = x.to_f64();
-    if f <= 0.0 {
-        return 0;
-    }
-    let t = f * emission_scale as f64;
-    if t >= u64::MAX as f64 {
+    let scale = 1u128 << tru::arithmetic::FRAC_BITS;
+    let raw = x.raw().as_u64() as u128;
+    let Some(num) = raw.checked_mul(emission_scale as u128) else {
         return u64::MAX;
-    }
-    t.round().max(0.0) as u64
+    };
+    // round(num / scale) = floor((num + scale/2) / scale)
+    let t = (num + scale / 2) / scale;
+    t.min(u64::MAX as u128) as u64
 }
 
 fn fx_weight(x: Fx) -> u128 {
     if x <= Fx::ZERO {
         return 0;
     }
-    let f = x.to_f64();
-    if f <= 0.0 {
-        return 0;
-    }
-    let w = (f * 1_000_000_000_000.0) as u128;
+    let scale = 1u128 << tru::arithmetic::FRAC_BITS;
+    let raw = x.raw().as_u64() as u128;
+    let w = raw.saturating_mul(1_000_000_000_000u128) / scale;
     w.max(1)
 }
 
@@ -237,5 +239,31 @@ mod tests {
         assert_eq!(paid, out.iter().map(|r| r.amount).sum::<u64>());
         assert!(paid <= 1000);
         assert_eq!(paid, 1000.min(fx_to_tokens(Fx::ONE, 1000)));
+    }
+
+    #[test]
+    fn fx_to_tokens_never_touches_f64() {
+        // Exact integer cases: no rounding ambiguity possible.
+        assert_eq!(fx_to_tokens(Fx::ZERO, 1000), 0);
+        assert_eq!(fx_to_tokens(Fx::ONE, 0), 0);
+        assert_eq!(fx_to_tokens(Fx::ONE, 1000), 1000);
+        assert_eq!(fx_to_tokens(Fx::from_int(3), 1000), 3000);
+        // Half-way rounding: 0.5 * 3 = 1.5 -> rounds to 2 (round-half-up).
+        assert_eq!(fx_to_tokens(Fx::from_ratio(1, 2), 3), 2);
+        // Truncating fraction: 1/3 * 9 = 3.0 exactly.
+        assert_eq!(fx_to_tokens(Fx::from_ratio(1, 3), 9), 3);
+        // Overflow clamps to u64::MAX instead of wrapping.
+        assert_eq!(fx_to_tokens(Fx::from_int(i64::MAX / 2), u64::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn fx_weight_never_touches_f64() {
+        assert_eq!(fx_weight(Fx::ZERO), 0);
+        assert_eq!(fx_weight(Fx::ONE), 1_000_000_000_000);
+        assert_eq!(fx_weight(Fx::from_ratio(1, 2)), 500_000_000_000);
+        // The smallest representable positive share (2^-32) still yields a
+        // nonzero weight: floor(1 * 1e12 / 2^32) = 232.
+        let tiny = Fx::from_ratio(1, 1i64 << 32);
+        assert_eq!(fx_weight(tiny), 232);
     }
 }
