@@ -16,9 +16,11 @@
 //! this module closes the settle→mint conservation hole.
 
 pub mod conservation;
+pub mod fee_share;
 pub mod ledger;
 pub mod mint;
 
 pub use conservation::{clip_shares, conserve_and_allocate, ConserveError, ConserveResult};
+pub use fee_share::{distribute_fees, FeeShare, FeeShareError};
 pub use ledger::{LedgerError, MintLedger, TokenId};
 pub use mint::{execute_settle_mints, MintError, MintLeg, MintReceipt};
