@@ -66,6 +66,9 @@ impl MintLedger {
     }
 
     pub fn burn(&mut self, neuron: NeuronId, token: TokenId, amount: u64) -> Result<(), LedgerError> {
+        if amount == 0 {
+            return Ok(());
+        }
         let key = (neuron, token);
         let have = self.balances.get(&key).copied().unwrap_or(0);
         if have < amount {
@@ -147,5 +150,16 @@ mod tests {
         led.burn(a(), t(), 40).unwrap();
         assert!(led.check_token(t()));
         assert_eq!(led.supply(&t()), 60);
+    }
+
+    #[test]
+    fn burn_zero_from_untouched_neuron_is_a_no_op() {
+        // The neuron/token pair has no balances entry at all: `balances.get_mut`
+        // would find no key to update. Burning zero must not reach that path.
+        let mut led = MintLedger::new();
+        led.burn(a(), t(), 0).unwrap();
+        assert_eq!(led.balance(&a(), &t()), 0);
+        assert_eq!(led.total_burned(&t()), 0);
+        assert!(led.check_token(t()));
     }
 }
