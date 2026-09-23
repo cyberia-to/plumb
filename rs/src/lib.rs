@@ -16,9 +16,11 @@
 //! this module closes the settle→mint conservation hole.
 
 pub mod conservation;
+pub mod icbs;
 pub mod ledger;
 pub mod mint;
 
 pub use conservation::{clip_shares, conserve_and_allocate, ConserveError, ConserveResult};
+pub use icbs::{cost as icbs_cost, Market as IcbsMarket, MarketError, Position as IcbsPosition};
 pub use ledger::{LedgerError, MintLedger, TokenId};
 pub use mint::{execute_settle_mints, MintError, MintLeg, MintReceipt};
