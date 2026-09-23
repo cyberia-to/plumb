@@ -9,6 +9,7 @@
 //! > tok renormalizes the settled shares to min(v★(N), Δφ⁺(N)) at settlement,
 //! > the proportional clip of impulse. With that step, Σ mint(ν) ≤ global Δφ⁺.
 
+use tru::arithmetic::FRAC_BITS;
 use tru::Fx;
 
 /// One neuron's share after conservation (field units) and optional token amount.
@@ -157,30 +158,29 @@ pub fn conserve_and_allocate(
 }
 
 /// Tokens corresponding to a field mass: `round(fx * emission_scale)`.
+///
+/// `x` is stored as `raw = round(x · 2^FRAC_BITS)` ([`tru::arithmetic`]); the
+/// token count is `round(raw · emission_scale / 2^FRAC_BITS)`, computed as an
+/// exact `u128` product and shift — no float on this settle-mint path
+/// (`specs/arithmetic.md`).
 pub fn fx_to_tokens(x: Fx, emission_scale: u64) -> u64 {
     if x <= Fx::ZERO || emission_scale == 0 {
         return 0;
     }
-    let f = x.to_f64();
-    if f <= 0.0 {
-        return 0;
-    }
-    let t = f * emission_scale as f64;
-    if t >= u64::MAX as f64 {
-        return u64::MAX;
-    }
-    t.round().max(0.0) as u64
+    let raw = x.raw().as_u64() as u128;
+    let prod = raw * emission_scale as u128;
+    let half = 1u128 << (FRAC_BITS - 1);
+    let t = (prod + half) >> FRAC_BITS;
+    t.min(u64::MAX as u128) as u64
 }
 
+/// `floor(x · 10^12)` as an integer weight, exact in fixed point (no float).
 fn fx_weight(x: Fx) -> u128 {
     if x <= Fx::ZERO {
         return 0;
     }
-    let f = x.to_f64();
-    if f <= 0.0 {
-        return 0;
-    }
-    let w = (f * 1_000_000_000_000.0) as u128;
+    let raw = x.raw().as_u64() as u128;
+    let w = (raw * 1_000_000_000_000u128) >> FRAC_BITS;
     w.max(1)
 }
 
@@ -227,6 +227,35 @@ mod tests {
         let raw = vec![(h(1), Fx::ONE)];
         let out = conserve_and_allocate(&raw, Fx::ONE, 1_000_000, 10).unwrap();
         assert_eq!(out[0].amount, 10);
+    }
+
+    #[test]
+    fn fx_to_tokens_exact_for_large_emission_scale() {
+        // f64 has a 52-bit mantissa; a scale this close to u64::MAX would
+        // round in f64 arithmetic. Fixed-point must return it exactly for
+        // x == Fx::ONE (raw = 2^32, tokens = emission_scale exactly).
+        let scale = u64::MAX - 3;
+        assert_eq!(fx_to_tokens(Fx::ONE, scale), scale);
+    }
+
+    #[test]
+    fn fx_to_tokens_rounds_to_nearest() {
+        // 1/3 * 9 = 3 exactly once rounded to the nearest representable Fx,
+        // fixed-point must round the same way every run (no ULP drift).
+        let third = Fx::from_ratio(1, 3);
+        assert_eq!(fx_to_tokens(third, 9), 3);
+        assert_eq!(fx_to_tokens(third, 30), 10);
+    }
+
+    #[test]
+    fn fx_weight_is_floor_not_rounded() {
+        // 0.1 * 1e12 = 1e11 exactly at this resolution; fx_weight floors,
+        // matching the pre-fix `as u128` truncation semantics.
+        let tenth = Fx::from_ratio(1, 10);
+        let w = fx_weight(tenth);
+        // from_ratio rounds 1/10 to the nearest representable Fx (resolution
+        // 2^-32), so the floor below is within a few hundred of 1e11.
+        assert!((99_999_999_700..=100_000_000_300).contains(&w), "w={w}");
     }
 
     #[test]
