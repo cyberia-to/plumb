@@ -69,6 +69,18 @@ PLUMB preserves four laws by construction (see [[cyb/robot]] §conservation):
 
 violations are unprovable: the [[zheng]] proof system rejects any operation sequence that breaks them.
 
+## personal book fees
+
+a [[cyber/research/oikos|home book]]'s $ν token carries a fifth conservation
+clause beyond the four above: holding $ν is a pro-rata claim on the fees the
+book collects for as long as it lives ([[cyber/launch|launch]] property #32).
+`tok::distribute_fees` reads every current $ν holder straight off the
+`MintLedger` and splits a book's fee budget so `Σ share == fees` exactly —
+no holder list a caller could miscount, no dust the ledger's own
+`Σ balances = mints − burns` invariant doesn't already account for. wiring
+which events size the fee budget itself is the referral mechanism's own
+concern, not this split.
+
 ## see also
 
 - [[plumb/tsp-1]] — Coin nature

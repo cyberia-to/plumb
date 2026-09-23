@@ -115,6 +115,16 @@ impl MintLedger {
         self.total_minted(token)
             .saturating_sub(self.total_burned(token))
     }
+
+    /// Every `(holder, balance)` pair with a positive balance in `token`,
+    /// in canonical `BTreeMap` order (ascending `NeuronId`).
+    pub fn holders_of(&self, token: &TokenId) -> Vec<(NeuronId, u64)> {
+        self.balances
+            .iter()
+            .filter(|((_, t), b)| *t == *token && **b > 0)
+            .map(|((n, _), b)| (*n, *b))
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -147,5 +157,14 @@ mod tests {
         led.burn(a(), t(), 40).unwrap();
         assert!(led.check_token(t()));
         assert_eq!(led.supply(&t()), 60);
+    }
+
+    #[test]
+    fn holders_of_excludes_zero_balances_and_other_tokens() {
+        let mut led = MintLedger::new();
+        led.mint_batch(t(), &[(a(), 100), (b(), 50)]).unwrap();
+        led.burn(b(), t(), 50).unwrap();
+        led.mint_batch([9u8; 32], &[(a(), 999)]).unwrap();
+        assert_eq!(led.holders_of(&t()), vec![(a(), 100)]);
     }
 }
