@@ -124,7 +124,7 @@ ethereum:   A.method() → calls B → calls C      ordering matters, reentrancy
 cyber:      proof(A valid) ⊗ proof(B valid) ⊗ proof(C valid) = proof(signal valid)
 ```
 
-a signal batches multiple cyberlinks governed by different dialects. zheng validates all of them in one folded proof via HyperNova. 1000 cyberlink proofs fold into one constant-size proof. no ordering constraints, no reentrancy surface, no call stack.
+a signal batches multiple cyberlinks governed by different dialects. zheng validates all of them in one accumulated proof whose size does not grow with the number of cyberlinks; the accumulation scheme is fixed by [[soft3/proposals/proof-system-repair|the proof-system repair]]. no ordering constraints, no reentrancy surface, no call stack.
 
 a DEX is not a contract. it is a dialect that validates swap cyberlinks. a lending protocol is not a contract. it is a dialect that validates borrow/repay cyberlinks. every application is dialect rules + optional progs. the graph is the state.
 
@@ -210,7 +210,7 @@ bbg_query(particles, p,       energy)    how much attention does this particle h
 bbg_query(pools,     pool_id, reserves)  what are the current pool reserves?
 ```
 
-O(1) polynomial evaluation. one lens opening. ~200 bytes proof. replaces Ethereum view functions, Solana account reads, Cardano reference inputs.
+one polynomial evaluation, one lens opening. replaces Ethereum view functions, Solana account reads, Cardano reference inputs.
 
 ---
 
