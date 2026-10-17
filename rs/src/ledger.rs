@@ -154,6 +154,15 @@ impl MintLedger {
         sum_bal == m.saturating_sub(b)
     }
 
+    /// Every holder of `token` with a nonzero balance, ascending by neuron id.
+    pub fn holders(&self, token: &TokenId) -> Vec<(NeuronId, u64)> {
+        self.balances
+            .iter()
+            .filter(|((_, t), b)| t == token && **b > 0)
+            .map(|((n, _), b)| (*n, *b))
+            .collect()
+    }
+
     pub fn supply(&self, token: &TokenId) -> u64 {
         self.total_minted(token)
             .saturating_sub(self.total_burned(token))
