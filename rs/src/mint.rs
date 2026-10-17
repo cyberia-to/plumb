@@ -140,4 +140,69 @@ mod tests {
         assert_eq!(rec.total, 1000);
         assert_eq!(rec.legs.len(), 2);
     }
+
+    // MintError::Ledger and MintError::EmptyLegs are not exercised below:
+    // conserve_and_allocate's dust path (see the last test in this module)
+    // always forces exactly one 1-token leg when total_tokens rounds to
+    // zero, and every other zero-leg cause is already rejected earlier as
+    // a ConserveError, so `legs` is never empty on the Ok path; and
+    // MintLedger::mint_batch cannot fail right after a mint that grows
+    // `minted` and a balance by the same delta together (flagged the same
+    // way in ledger.rs's own audit, row 110). Both remain structurally
+    // unreachable from this function today.
+
+    #[test]
+    fn propagates_conserve_error_on_empty_shares() {
+        let mut led = MintLedger::new();
+        let err = execute_settle_mints(&mut led, h(7), &[], Fx::ONE, 1000, 1000, &h(0xAA))
+            .unwrap_err();
+        assert_eq!(err, MintError::Conserve(ConserveError::Empty));
+        assert_eq!(led.supply(&h(7)), 0);
+    }
+
+    #[test]
+    fn propagates_conserve_error_on_zero_budget() {
+        let mut led = MintLedger::new();
+        let raw = vec![(h(1), Fx::ONE)];
+        let err =
+            execute_settle_mints(&mut led, h(7), &raw, Fx::ONE, 1000, 0, &h(0xAA)).unwrap_err();
+        assert_eq!(err, MintError::Conserve(ConserveError::BudgetZero));
+    }
+
+    #[test]
+    fn propagates_conserve_error_on_no_positive_share() {
+        let mut led = MintLedger::new();
+        let raw = vec![(h(1), Fx::ZERO), (h(2), Fx::ZERO)];
+        let err =
+            execute_settle_mints(&mut led, h(7), &raw, Fx::ONE, 1000, 1000, &h(0xAA)).unwrap_err();
+        assert_eq!(err, MintError::Conserve(ConserveError::NoPositiveShare));
+    }
+
+    #[test]
+    fn intent_hash_is_order_independent() {
+        let raw_forward = vec![(h(1), Fx::ONE), (h(2), Fx::ONE), (h(3), Fx::ONE)];
+        let raw_reversed: Vec<_> = raw_forward.iter().rev().cloned().collect();
+
+        let mut led_a = MintLedger::new();
+        let rec_a = execute_settle_mints(&mut led_a, h(7), &raw_forward, Fx::ONE, 1000, 900, &h(0xAA))
+            .unwrap();
+        let mut led_b = MintLedger::new();
+        let rec_b = execute_settle_mints(&mut led_b, h(7), &raw_reversed, Fx::ONE, 1000, 900, &h(0xAA))
+            .unwrap();
+
+        assert_eq!(rec_a.intent_hash, rec_b.intent_hash);
+        assert_eq!(rec_a.total, rec_b.total);
+    }
+
+    #[test]
+    fn dust_path_always_yields_exactly_one_leg() {
+        // emission_scale = 0 forces fx_to_tokens's uncapped mass to 0,
+        // driving conserve_and_allocate's sub-scale dust branch.
+        let mut led = MintLedger::new();
+        let raw = vec![(h(1), Fx::ONE), (h(2), Fx::from_int(2))];
+        let rec = execute_settle_mints(&mut led, h(7), &raw, Fx::ONE, 0, 5, &h(0xAA)).unwrap();
+        assert_eq!(rec.total, 1);
+        assert_eq!(rec.legs.len(), 1);
+        assert_eq!(rec.legs[0].amount, 1);
+    }
 }
