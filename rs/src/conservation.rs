@@ -266,4 +266,13 @@ mod tests {
         let tiny = Fx::from_ratio(1, 1i64 << 32);
         assert_eq!(fx_weight(tiny), 232);
     }
+
+    #[test]
+    fn fx_to_tokens_exact_for_large_emission_scale() {
+        // f64 has a 52-bit mantissa; a scale this close to u64::MAX would
+        // round in f64 arithmetic. Fixed point returns it exactly for
+        // x == Fx::ONE (raw = 2^32, tokens = emission_scale exactly).
+        let scale = u64::MAX - 3;
+        assert_eq!(fx_to_tokens(Fx::ONE, scale), scale);
+    }
 }
