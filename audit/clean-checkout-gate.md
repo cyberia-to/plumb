@@ -69,3 +69,28 @@ property 39.
 referral, ICBS market, stake-yield); this measures the base the sweep
 would have measured, not the state after those merge. it also says
 nothing about plumb's dependents resolving it correctly.
+
+## re-run 2026-10-17
+
+after the branch-hygiene pass merged the open launch PRs (#9, #12, #13,
+#16, #18, #19, #20, #21) into `origin/main`, the gate was measured again
+on `origin/main` `caafba9c4f2fe919f4f6e2bed4a2b523b2b7ccb7` with every
+sibling at its origin default branch, as detached worktrees beside the
+checkout (none from an owner's working tree): [[neuron]]
+`c87541120caae4fb5d5bb401653d1cbcbeffeb7d`, [[hemera]]
+`fd55f99a17408c1f5a65d51c1ea73a6c60906f53`, [[tru]]
+`c9ebc6286a93e69a9dd1eb0bd8644999780b3bd5`, [[strata]]
+`12a7a6df7f69329d6b075b08abf0af7b8d4282a0`.
+
+```
+$ cargo check --tests --locked --manifest-path rs/Cargo.toml
+    Finished `dev` profile [unoptimized + debuginfo] target(s)
+$ cargo test --locked --manifest-path rs/Cargo.toml
+test result: ok. 84 passed; 0 failed; 0 ignored
+```
+
+84 tests pass, 0 warnings, on `rustc 1.95.0 (59807616e 2026-04-14)`.
+the 2026-09-23 caveat is closed: the measured base now includes transfer,
+lock, book roots, referral, fees, stake yield, PoW subsidy and service
+fee. the ICBS market (row 25) is not in it; its draft was closed as
+needing a rewrite on `tru::icbs`.
