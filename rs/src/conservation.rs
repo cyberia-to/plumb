@@ -51,13 +51,17 @@ pub fn clip_shares(
     if sum_pos <= Fx::ZERO {
         return Err(ConserveError::NoPositiveShare);
     }
-    // v★ ≈ sum of positive lottery shares; ceiling = min(v★, Δφ⁺)
-    let mut ceiling = sum_pos;
-    if directed_total > Fx::ZERO && directed_total < ceiling {
-        ceiling = directed_total;
-    }
-    // If directed_total is zero but shares positive (edge path), keep sum_pos
-    // so propose-path mints still work; pure zero-value fails above.
+    // v★ ≈ sum of positive lottery shares; ceiling = min(v★, Δφ⁺).
+    // A non-positive Δφ⁺ (genuinely measured, not merely absent) means the
+    // coalition moved nothing: ceiling clips to zero, matching rewards.rs's
+    // own contract ("clip: if directed_total is 0, no mint").
+    let ceiling = if directed_total <= Fx::ZERO {
+        Fx::ZERO
+    } else if directed_total < sum_pos {
+        directed_total
+    } else {
+        sum_pos
+    };
     let scale = ceiling.div(sum_pos); // ceiling / sum_pos ≤ 1
     let out: Vec<_> = raw
         .iter()
@@ -157,30 +161,32 @@ pub fn conserve_and_allocate(
 }
 
 /// Tokens corresponding to a field mass: `round(fx * emission_scale)`.
+///
+/// Computed on the raw scaled integer `x.raw().as_u64()` (the field element
+/// `round(x · 2^FRAC_BITS)`, per arithmetic.md), never through `f64` — a
+/// float round-trip here would violate the fixed-point-everywhere doctrine
+/// on this settle-mint path.
 pub fn fx_to_tokens(x: Fx, emission_scale: u64) -> u64 {
     if x <= Fx::ZERO || emission_scale == 0 {
         return 0;
     }
-    let f = x.to_f64();
-    if f <= 0.0 {
-        return 0;
-    }
-    let t = f * emission_scale as f64;
-    if t >= u64::MAX as f64 {
+    let scale = 1u128 << tru::arithmetic::FRAC_BITS;
+    let raw = x.raw().as_u64() as u128;
+    let Some(num) = raw.checked_mul(emission_scale as u128) else {
         return u64::MAX;
-    }
-    t.round().max(0.0) as u64
+    };
+    // round(num / scale) = floor((num + scale/2) / scale)
+    let t = (num + scale / 2) / scale;
+    t.min(u64::MAX as u128) as u64
 }
 
 fn fx_weight(x: Fx) -> u128 {
     if x <= Fx::ZERO {
         return 0;
     }
-    let f = x.to_f64();
-    if f <= 0.0 {
-        return 0;
-    }
-    let w = (f * 1_000_000_000_000.0) as u128;
+    let scale = 1u128 << tru::arithmetic::FRAC_BITS;
+    let raw = x.raw().as_u64() as u128;
+    let w = raw.saturating_mul(1_000_000_000_000u128) / scale;
     w.max(1)
 }
 
@@ -222,6 +228,32 @@ mod tests {
     }
 
     #[test]
+    fn zero_directed_total_clips_to_zero_not_vstar() {
+        // Δφ⁺ genuinely measured as zero: rewards.rs's own contract is "if
+        // directed_total is 0, no mint" — the ceiling must clip to zero, not
+        // fall back to the uncapped lottery sum v★.
+        let raw = vec![(h(1), Fx::ONE), (h(2), Fx::from_ratio(1, 2))];
+        let clipped = clip_shares(&raw, Fx::ZERO).unwrap();
+        for (_, s) in &clipped {
+            assert_eq!(*s, Fx::ZERO, "a zero Δφ⁺ ceiling must zero every share");
+        }
+    }
+
+    #[test]
+    fn zero_directed_total_mints_nothing() {
+        let raw = vec![(h(1), Fx::ONE), (h(2), Fx::from_ratio(1, 2))];
+        let err = conserve_and_allocate(&raw, Fx::ZERO, 1000, 1000).unwrap_err();
+        assert_eq!(err, ConserveError::NoPositiveShare);
+    }
+
+    #[test]
+    fn negative_directed_total_mints_nothing() {
+        let raw = vec![(h(1), Fx::ONE)];
+        let err = conserve_and_allocate(&raw, Fx::from_ratio(-1, 2), 1000, 1000).unwrap_err();
+        assert_eq!(err, ConserveError::NoPositiveShare);
+    }
+
+    #[test]
     fn budget_caps_emission() {
         // Large emission_scale but budget 10
         let raw = vec![(h(1), Fx::ONE)];
@@ -237,5 +269,40 @@ mod tests {
         assert_eq!(paid, out.iter().map(|r| r.amount).sum::<u64>());
         assert!(paid <= 1000);
         assert_eq!(paid, 1000.min(fx_to_tokens(Fx::ONE, 1000)));
+    }
+
+    #[test]
+    fn fx_to_tokens_never_touches_f64() {
+        // Exact integer cases: no rounding ambiguity possible.
+        assert_eq!(fx_to_tokens(Fx::ZERO, 1000), 0);
+        assert_eq!(fx_to_tokens(Fx::ONE, 0), 0);
+        assert_eq!(fx_to_tokens(Fx::ONE, 1000), 1000);
+        assert_eq!(fx_to_tokens(Fx::from_int(3), 1000), 3000);
+        // Half-way rounding: 0.5 * 3 = 1.5 -> rounds to 2 (round-half-up).
+        assert_eq!(fx_to_tokens(Fx::from_ratio(1, 2), 3), 2);
+        // Truncating fraction: 1/3 * 9 = 3.0 exactly.
+        assert_eq!(fx_to_tokens(Fx::from_ratio(1, 3), 9), 3);
+        // Overflow clamps to u64::MAX instead of wrapping.
+        assert_eq!(fx_to_tokens(Fx::from_int(i64::MAX / 2), u64::MAX), u64::MAX);
+    }
+
+    #[test]
+    fn fx_weight_never_touches_f64() {
+        assert_eq!(fx_weight(Fx::ZERO), 0);
+        assert_eq!(fx_weight(Fx::ONE), 1_000_000_000_000);
+        assert_eq!(fx_weight(Fx::from_ratio(1, 2)), 500_000_000_000);
+        // The smallest representable positive share (2^-32) still yields a
+        // nonzero weight: floor(1 * 1e12 / 2^32) = 232.
+        let tiny = Fx::from_ratio(1, 1i64 << 32);
+        assert_eq!(fx_weight(tiny), 232);
+    }
+
+    #[test]
+    fn fx_to_tokens_exact_for_large_emission_scale() {
+        // f64 has a 52-bit mantissa; a scale this close to u64::MAX would
+        // round in f64 arithmetic. Fixed point returns it exactly for
+        // x == Fx::ONE (raw = 2^32, tokens = emission_scale exactly).
+        let scale = u64::MAX - 3;
+        assert_eq!(fx_to_tokens(Fx::ONE, scale), scale);
     }
 }
