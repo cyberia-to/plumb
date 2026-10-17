@@ -18,7 +18,13 @@
 pub mod conservation;
 pub mod ledger;
 pub mod mint;
+pub mod fees;
+pub mod referral;
+pub mod stake;
 
 pub use conservation::{clip_shares, conserve_and_allocate, ConserveError, ConserveResult};
-pub use ledger::{LedgerError, MintLedger, TokenId};
+pub use ledger::{BookError, BookRegistry, LedgerError, MintLedger, TokenId};
 pub use mint::{execute_settle_mints, MintError, MintLeg, MintReceipt};
+pub use fees::{distribute_fees, fee_pool, FeeReceipt};
+pub use referral::{birth_mint, BirthMintReceipt, ReferralError};
+pub use stake::{stake_yield_shares, StakePosition};
