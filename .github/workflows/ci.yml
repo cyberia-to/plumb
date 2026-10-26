@@ -22,9 +22,9 @@ env:
   NEURON_REF: ""
   # hemera's 0.4 line; set to main once hemera#25 (release/0.4 -> main) lands
   HEMERA_REF: release/0.4
-  # tru's hemera-0.4 PR; set to release/phase1 once it merges there,
+  # tru's integration line (tru#43 merged there as 464104c);
   # master once the tru landing lands
-  TRU_REF: feat/hemera-0.4
+  TRU_REF: release/phase1
   # empty = strata's default branch
   STRATA_REF: ""
   # empty = honeycrisp's default branch
