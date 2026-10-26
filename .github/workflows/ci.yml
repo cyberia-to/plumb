@@ -1,0 +1,120 @@
+# CI for tok (repository cyberia-to/plumb).
+#
+# plumb is checked out as `tok`, the directory name the soft3 release train
+# uses, so the path deps in rs/Cargo.toml (../../neuron/id, ../../hemera/rs,
+# ../../tru/rs, and tru's own ../../strata/nebu/rs and ../../honeycrisp/acpu)
+# resolve. The stand: tok, neuron, hemera, tru, strata, honeycrisp side by side.
+# rs/ has its own [workspace], so its Cargo.lock is rs/Cargo.lock.
+# The `lockfile` job resolves the stand and uploads Cargo.lock as an artifact.
+# The `test` job runs `cargo test --locked` in rs, the train's `stack-tok` gate.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main, 'release/**']
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  # empty = neuron's default branch
+  NEURON_REF: ""
+  # hemera's 0.4 line; set to main once hemera#25 (release/0.4 -> main) lands
+  HEMERA_REF: release/0.4
+  # tru's hemera-0.4 PR; set to release/phase1 once it merges there,
+  # master once the tru landing lands
+  TRU_REF: feat/hemera-0.4
+  # empty = strata's default branch
+  STRATA_REF: ""
+  # empty = honeycrisp's default branch
+  HONEYCRISP_REF: ""
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tok
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/neuron
+          path: neuron
+          ref: ${{ env.NEURON_REF }}
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/hemera
+          path: hemera
+          ref: ${{ env.HEMERA_REF }}
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/tru
+          path: tru
+          ref: ${{ env.TRU_REF }}
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/strata
+          path: strata
+          ref: ${{ env.STRATA_REF }}
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/honeycrisp
+          path: honeycrisp
+          ref: ${{ env.HONEYCRISP_REF }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tok/rs
+      - name: resolve the stand
+        run: cargo metadata --format-version 1 > /dev/null
+        working-directory: tok/rs
+      - name: Cargo.lock changes
+        run: git -C tok diff --stat -- rs/Cargo.lock
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Cargo.lock
+          path: tok/rs/Cargo.lock
+      - name: committed Cargo.lock matches the stand
+        run: git -C tok diff --exit-code -- rs/Cargo.lock
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: tok
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/neuron
+          path: neuron
+          ref: ${{ env.NEURON_REF }}
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/hemera
+          path: hemera
+          ref: ${{ env.HEMERA_REF }}
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/tru
+          path: tru
+          ref: ${{ env.TRU_REF }}
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/strata
+          path: strata
+          ref: ${{ env.STRATA_REF }}
+      - uses: actions/checkout@v4
+        with:
+          repository: cyberia-to/honeycrisp
+          path: honeycrisp
+          ref: ${{ env.HONEYCRISP_REF }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tok/rs
+      - name: cargo test
+        run: cargo test --locked
+        working-directory: tok/rs

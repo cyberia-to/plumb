@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "cyber-hemera"
-version = "0.3.1"
+version = "0.4.0"
 
 [[package]]
 name = "cyber-tok"
